@@ -94,7 +94,11 @@ public class Dcci {
      * 0 maps to Red 1 maps to Green 2 maps to Blue
      */
     protected static int getChannel(int rgb, int channel) {
-        return (rgb >> (16 - 8 * channel)) & 0xFF;
+        return (rgb >> getShiftForChannel(channel)) & 0xFF;
+    }
+
+    private static int getShiftForChannel(int channel) {
+        return 16 - 8 * channel;
     }
 
     /**
@@ -102,9 +106,9 @@ public class Dcci {
      */
     protected static int withChannel(int rgb, int channel, int value) {
         // Unset the bits that will be modified
-        rgb &= ~(0xFF << (16 - 8 * channel));
+        rgb &= ~(0xFF << (getShiftForChannel(channel)));
         // Set them the provided value
-        int shiftedValue = value << (16 - 8 * channel);
+        int shiftedValue = value << (getShiftForChannel(channel)); // JVM should be smart and reuse the first result
         return rgb | shiftedValue;
     }
 
