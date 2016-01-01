@@ -7,6 +7,49 @@ import java.awt.image.BufferedImage;
 public class Dcci {
 
     /**
+     * Scales an image to twice its original width minus one and twice its original height minus one using Directional
+     * Cubic Convoluted Interpolation.
+     *
+     * <p>Using Java built-in nearest neighbor, scale the original image to the final size of twice the original
+     * dimensions minus one. This is a very cheap and fast way to preserve the alpha channel "good enough" and dispose
+     * the pixels the way they need to be.
+     *
+     * <p>Interpolate is called in every pixel that had been over-simplistically interpolated by nearest neighbor to
+     * interpolate it using Directional Cubic Convoluted Interpolation.
+     *
+     * @param original the original BufferedImage, must be at least one pixel
+     * @return a BufferedImage whose size is twice the original dimensions minus one
+     */
+    private static BufferedImage scale(BufferedImage original) {
+        int newWidth = original.getWidth() * 2 - 1;
+        int newHeight = original.getHeight() * 2 - 1;
+        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = result.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2.drawImage(original, 0, 0, newWidth, newHeight, null);
+        g2.dispose();
+        interpolateDiagonalsGaps(result);
+        interpolateRemainingGaps(result);
+        return result;
+    }
+
+    private static void interpolateDiagonalsGaps(BufferedImage scaledImage) {
+        for (int y = 1; y < scaledImage.getHeight(); y += 2) {
+            for (int x = 1; x < scaledImage.getWidth(); x += 2) {
+                interpolateDiagonalGap(scaledImage, x, y);
+            }
+        }
+    }
+
+    private static void interpolateRemainingGaps(BufferedImage scaledImage) {
+        for (int y = 0; y < scaledImage.getHeight(); y++) {
+            for (int x = ((y % 2 == 0) ? 1 : 0); x < scaledImage.getWidth(); x += 2) {
+                interpolateRemainingGap(scaledImage, x, y);
+            }
+        }
+    }
+
+    /**
      * Evaluates the sum of the RGB channel differences between two RGB values.
      *
      * <p>This is equal to |a.r - b.r| + |a.g - b.g| + |a.b - b.b|
@@ -59,47 +102,8 @@ public class Dcci {
         return d2;
     }
 
-    /**
-     * Scales an image to twice its original width minus one and twice its original height minus one using Directional
-     * Cubic Convoluted Interpolation.
-     *
-     * <p>Using Java built-in nearest neighbor, scale the original image to the final size of twice the original
-     * dimensions minus one. This is a very cheap and fast way to preserve the alpha channel "good enough" and dispose
-     * the pixels the way they need to be.
-     *
-     * <p>Interpolate is called in every pixel that had been over-simplistically interpolated by nearest neighbor to
-     * interpolate it using Directional Cubic Convoluted Interpolation.
-     *
-     * @param original the original BufferedImage, must be at least one pixel
-     * @return a BufferedImage whose size is twice the original dimensions minus one
-     */
-    private static BufferedImage scale(BufferedImage original) {
-        int newWidth = original.getWidth() * 2 - 1;
-        int newHeight = original.getHeight() * 2 - 1;
-        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = result.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2.drawImage(original, 0, 0, newWidth, newHeight, null);
-        g2.dispose();
-        interpolateDiagonalsGaps(result);
-        interpolateRemainingGaps(result);
-        return result;
-    }
-
-    private static void interpolateDiagonalsGaps(BufferedImage scaledImage) {
-        for (int y = 1; y < scaledImage.getHeight(); y += 2) {
-            for (int x = 1; x < scaledImage.getWidth(); x += 2) {
-                interpolateDiagonalGap(scaledImage, x, y);
-            }
-        }
-    }
-
-    private static void interpolateRemainingGaps(BufferedImage scaledImage) {
-        for (int y = 0; y < scaledImage.getHeight(); y++) {
-            for (int x = ((y % 2 == 0) ? 1 : 0); x < scaledImage.getWidth(); x += 2) {
-                interpolateRemainingGap(scaledImage, x, y);
-            }
-        }
+    private static int getShiftForChannel(int channel) {
+        return 16 - 8 * channel;
     }
 
     /**
@@ -109,10 +113,6 @@ public class Dcci {
      */
     protected static int getChannel(int rgb, int channel) {
         return (rgb >> getShiftForChannel(channel)) & 0xFF;
-    }
-
-    private static int getShiftForChannel(int channel) {
-        return 16 - 8 * channel;
     }
 
     /**
@@ -169,6 +169,31 @@ public class Dcci {
         return finalRgb;
     }
 
+    /**
+     * The original paper does not specify how to handle colored images. The solution used here is to sum all RGB
+     * components when calculating edge strength and interpolate over each color channel separately.
+     */
+    private static void interpolateDiagonalGap(BufferedImage image, final int x, final int y) {
+        // Diagonal edge strength
+        int d1 = evaluateD1(image, x, y);
+        int d2 = evaluateD2(image, x, y);
+        if (100 * (1 + d1) > 115 * (1 + d2)) { // Up-right edge
+            // For an up-right edge, interpolate in the down-right direction
+            downRightInterpolate(image, x, y);
+        } else if (100 * (1 + d2) > 115 * (1 + d1)) { // Down-right edge
+            // For an down-right edge, interpolate in the up-right direction
+            upRightInterpolate(image, x, y);
+        } else { // Smooth area
+            // In the smooth area, edge strength from Up-Right will contribute to the Down-Right sampled pixel, and edge
+            // strength from Down-Right will contribute to the Up-Right sampled pixel.
+            double w1 = 1 / (1 + Math.pow(d1, 5));
+            double w2 = 1 / (1 + Math.pow(d2, 5));
+            double downRightWeight = w1 / (w1 + w2);
+            double upRightWeight = w2 / (w1 + w2);
+            smoothDiagonalInterpolate(image, x, y, downRightWeight, upRightWeight);
+        }
+    }
+
     private static int[] getDownRightRGB(BufferedImage image, int x, int y) {
         int[] sourceRgb = new int[4];
         sourceRgb[0] = image.getRGB(x - 3, y - 3);
@@ -209,31 +234,6 @@ public class Dcci {
      * The original paper does not specify how to handle colored images. The solution used here is to sum all RGB
      * components when calculating edge strength and interpolate over each color channel separately.
      */
-    private static void interpolateDiagonalGap(BufferedImage image, final int x, final int y) {
-        // Diagonal edge strength
-        int d1 = evaluateD1(image, x, y);
-        int d2 = evaluateD2(image, x, y);
-        if (100 * (1 + d1) > 115 * (1 + d2)) { // Up-right edge
-            // For an up-right edge, interpolate in the down-right direction
-            downRightInterpolate(image, x, y);
-        } else if (100 * (1 + d2) > 115 * (1 + d1)) { // Down-right edge
-            // For an down-right edge, interpolate in the up-right direction
-            upRightInterpolate(image, x, y);
-        } else { // Smooth area
-            // In the smooth area, edge strength from Up-Right will contribute to the Down-Right sampled pixel, and edge
-            // strength from Down-Right will contribute to the Up-Right sampled pixel.
-            double w1 = 1 / (1 + Math.pow(d1, 5));
-            double w2 = 1 / (1 + Math.pow(d2, 5));
-            double downRightWeight = w1 / (w1 + w2);
-            double upRightWeight = w2 / (w1 + w2);
-            smoothDiagonalInterpolate(image, x, y, downRightWeight, upRightWeight);
-        }
-    }
-
-    /**
-     * The original paper does not specify how to handle colored images. The solution used here is to sum all RGB
-     * components when calculating edge strength and interpolate over each color channel separately.
-     */
     private static void interpolateRemainingGap(BufferedImage image, final int x, final int y) {
         // Diagonal edge strength
         int d1 = evaluateHorizontalWeight(image, x, y);
@@ -255,36 +255,42 @@ public class Dcci {
         }
     }
 
-    private static void verticalInterpolate(BufferedImage image, int x, int y) {
+    private static int[] getVerticalRGB(BufferedImage image, int x, int y) {
+        int[] sourceRgb = new int[4];
+        sourceRgb[0] = image.getRGB(x, y - 3);
+        sourceRgb[1] = image.getRGB(x, y - 1);
+        sourceRgb[2] = image.getRGB(x, y + 1);
+        sourceRgb[3] = image.getRGB(x, y + 3);
+        return sourceRgb;
+    }
 
+    private static int[] getHorizontalRGB(BufferedImage image, int x, int y) {
+        int[] sourceRgb = new int[4];
+        sourceRgb[0] = image.getRGB(x - 3, y);
+        sourceRgb[1] = image.getRGB(x - 1, y);
+        sourceRgb[2] = image.getRGB(x + 1, y);
+        sourceRgb[3] = image.getRGB(x + 3, y);
+        return sourceRgb;
+
+    }
+
+    private static void verticalInterpolate(BufferedImage image, int x, int y) {
+        int[] source = getVerticalRGB(image, x, y);
+        effectivelyInterpolate(image, source, x, y);
     }
 
     private static void horizontalInterpolate(BufferedImage image, int x, int y) {
-
+        int[] source = getHorizontalRGB(image, x, y);
+        effectivelyInterpolate(image, source, x, y);
     }
 
     private static void smoothRemainingInterpolate(BufferedImage image, int x, int y, double verticalWeight, double horizontalWeight) {
-
-    }
-
-    private static int evaluateHorizontalWeight(BufferedImage image, int x, int y) {
-        int weight = 0;
-        // Could be refactored into a for loop to improve readability. However, I don't know if there is a way to do
-        // so that wouldn't make it too cryptic.
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y - 2), image.getRGB(x - 1, y - 2));
-
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 2, y - 1), image.getRGB(x, y - 1));
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x, y - 1), image.getRGB(x - 2, y - 1));
-
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 3, y), image.getRGB(x + 1, y));
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y), image.getRGB(x - 1, y));
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x - 1, y), image.getRGB(x - 3, y));
-
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 2, y + 1), image.getRGB(x, y + 1));
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x, y + 1), image.getRGB(x - 2, y + 1));
-
-        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y + 2), image.getRGB(x - 1, y + 2));
-        return weight;
+        int[] verticalRGB = getVerticalRGB(image, x, y);
+        int interpolatedVerticalRGB = getInterpolatedRGB(verticalRGB);
+        int[] horizontalRGB = getHorizontalRGB(image, x, y);
+        int interpolatedHorizontalRGB = getInterpolatedRGB(horizontalRGB);
+        int finalRGB = weightedRGBAverage(interpolatedVerticalRGB, interpolatedHorizontalRGB, verticalWeight, horizontalWeight);
+        image.setRGB(x, y, finalRGB);
     }
 
     private static int evaluateVerticalWeight(BufferedImage image, int x, int y) {
@@ -306,6 +312,26 @@ public class Dcci {
         weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y), image.getRGB(x + 1, y - 2));
 
         weight += getRGBChannelsDifferenceSum(image.getRGB(x + 2, y + 1), image.getRGB(x + 2, y - 1));
+        return weight;
+    }
+
+    private static int evaluateHorizontalWeight(BufferedImage image, int x, int y) {
+        int weight = 0;
+        // Could be refactored into a for loop to improve readability. However, I don't know if there is a way to do
+        // so that wouldn't make it too cryptic.
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y - 2), image.getRGB(x - 1, y - 2));
+
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 2, y - 1), image.getRGB(x, y - 1));
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x, y - 1), image.getRGB(x - 2, y - 1));
+
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 3, y), image.getRGB(x + 1, y));
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y), image.getRGB(x - 1, y));
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x - 1, y), image.getRGB(x - 3, y));
+
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 2, y + 1), image.getRGB(x, y + 1));
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x, y + 1), image.getRGB(x - 2, y + 1));
+
+        weight += getRGBChannelsDifferenceSum(image.getRGB(x + 1, y + 2), image.getRGB(x - 1, y + 2));
         return weight;
     }
 
