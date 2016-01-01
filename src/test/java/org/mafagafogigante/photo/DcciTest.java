@@ -1,6 +1,7 @@
+package org.mafagafogigante.photo;
+
 import org.junit.Assert;
 import org.junit.Test;
-
 
 public class DcciTest {
 

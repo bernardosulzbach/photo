@@ -1,3 +1,5 @@
+package org.mafagafogigante.photo;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 
@@ -20,23 +22,28 @@ public class Dcci {
      * @param original the original BufferedImage, must be at least one pixel
      * @return a BufferedImage whose size is twice the original dimensions minus one
      */
-    private static BufferedImage scale(BufferedImage original) {
+    public static BufferedImage scale(BufferedImage original) {
         int newWidth = original.getWidth() * 2 - 1;
         int newHeight = original.getHeight() * 2 - 1;
-        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
         Graphics2D g2 = result.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         g2.drawImage(original, 0, 0, newWidth, newHeight, null);
         g2.dispose();
-        interpolateDiagonalsGaps(result);
+        interpolateDiagonalGaps(result);
         interpolateRemainingGaps(result);
         return result;
     }
 
-    private static void interpolateDiagonalsGaps(BufferedImage scaledImage) {
+    private static void interpolateDiagonalGaps(BufferedImage scaledImage) {
         for (int y = 1; y < scaledImage.getHeight(); y += 2) {
             for (int x = 1; x < scaledImage.getWidth(); x += 2) {
-                interpolateDiagonalGap(scaledImage, x, y);
+                // DEBUGGING LIMITATION
+                if (y >= 3 && y <= scaledImage.getHeight() - 4) {
+                    if (x >= 3 && x <= scaledImage.getWidth() - 4) {
+                        interpolateDiagonalGap(scaledImage, x, y);
+                    }
+                }
             }
         }
     }
@@ -44,7 +51,12 @@ public class Dcci {
     private static void interpolateRemainingGaps(BufferedImage scaledImage) {
         for (int y = 0; y < scaledImage.getHeight(); y++) {
             for (int x = ((y % 2 == 0) ? 1 : 0); x < scaledImage.getWidth(); x += 2) {
-                interpolateRemainingGap(scaledImage, x, y);
+                // DEBUGGING LIMITATION
+                if (y >= 3 && y <= scaledImage.getHeight() - 4) {
+                    if (x >= 3 && x <= scaledImage.getWidth() - 4) {
+                        interpolateRemainingGap(scaledImage, x, y);
+                    }
+                }
             }
         }
     }
