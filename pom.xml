@@ -7,6 +7,27 @@
     <groupId>org.mafagafogigante</groupId>
     <artifactId>photo</artifactId>
     <version>1.0-SNAPSHOT</version>
+
+    <name>Java Photo Library</name>
+    <description>An image manipulation toolkit in pure Java.</description>
+    <url>http://mafagafogigante.org/photo</url>
+
+    <developers>
+        <developer>
+            <email>mafagafogigante@gmail.com</email>
+            <name>Bernardo Sulzbach</name>
+            <url>http://mafagafogigante.org/</url>
+            <id>mafagafogigante</id>
+        </developer>
+    </developers>
+
+    <licenses>
+        <license>
+            <name>The BSD 2-Clause License</name>
+            <url>https://opensource.org/licenses/BSD-2-Clause</url>
+        </license>
+    </licenses>
+
     <build>
         <pluginManagement>
             <plugins>
@@ -19,14 +40,20 @@
                         <target>1.6</target>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                </plugin>
             </plugins>
         </pluginManagement>
     </build>
+
     <dependencies>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.12</version>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 
