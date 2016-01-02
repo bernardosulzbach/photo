@@ -3,6 +3,11 @@ package org.mafagafogigante.photo;
 import org.junit.Assert;
 import org.junit.Test;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.io.InputStream;
+
 public class DcciTest {
 
     @Test
@@ -53,6 +58,22 @@ public class DcciTest {
         Assert.assertEquals(0xFF0000, Dcci.withChannel(0, 1, 0xFF));
         Assert.assertEquals(0x00FF00, Dcci.withChannel(0, 2, 0xFF));
         Assert.assertEquals(0x0000FF, Dcci.withChannel(0, 3, 0xFF));
+    }
+
+    @Test
+    public void testScaleShouldBeAbleToHandleSinglePixelImages() {
+        String filename = "single-pixel.png";
+        InputStream inputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(filename);
+        try {
+            BufferedImage bufferedImage = ImageIO.read(inputStream);
+            BufferedImage scaledImage = Dcci.scale(bufferedImage);
+            Assert.assertEquals(1, scaledImage.getHeight());
+            Assert.assertEquals(1, scaledImage.getWidth());
+        } catch (IOException io) {
+            Assert.fail("could not read " + filename);
+        } catch (Exception generic) {
+            Assert.fail("threw an exception when trying to scale a single pixel image");
+        }
     }
 
 }
