@@ -23,16 +23,33 @@ public class Dcci {
      * @return a BufferedImage whose size is twice the original dimensions minus one
      */
     public static BufferedImage scale(BufferedImage original) {
-        int newWidth = original.getWidth() * 2 - 1;
-        int newHeight = original.getHeight() * 2 - 1;
-        BufferedImage result = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2 = result.createGraphics();
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        g2.drawImage(original, 0, 0, newWidth, newHeight, null);
-        g2.dispose();
+        BufferedImage result = getDestinationBufferedImage(original);
         interpolateDiagonalGaps(result);
         interpolateRemainingGaps(result);
         return result;
+    }
+
+    /**
+     * Returns a BufferedImage backed by integers and big enough to support the scaling algorithm.
+     *
+     * @param bufferedImage a BufferedImage
+     */
+    private static BufferedImage getDestinationBufferedImage(BufferedImage bufferedImage) {
+        boolean imageHasAlpha = (bufferedImage.getTransparency() != BufferedImage.OPAQUE);
+        int destinationBufferedImageType;
+        if (imageHasAlpha) {
+            destinationBufferedImageType = BufferedImage.TYPE_INT_ARGB;
+        } else {
+            destinationBufferedImageType = BufferedImage.TYPE_INT_RGB;
+        }
+        int newWidth = bufferedImage.getWidth() * 2 - 1;
+        int newHeight = bufferedImage.getHeight() * 2 - 1;
+        BufferedImage destination = new BufferedImage(newWidth, newHeight, destinationBufferedImageType);
+        Graphics2D g2 = destination.createGraphics();
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g2.drawImage(bufferedImage, 0, 0, newWidth, newHeight, null);
+        g2.dispose();
+        return destination;
     }
 
     private static void interpolateDiagonalGaps(BufferedImage scaledImage) {
@@ -115,13 +132,13 @@ public class Dcci {
     }
 
     private static int getShiftForChannel(int channel) {
-        return 16 - 8 * channel;
+        return 24 - 8 * channel;
     }
 
     /**
      * Returns the eight bits that correspond to a given channel of the provided RGB integer.
      *
-     * 0 maps to Red 1 maps to Green 2 maps to Blue
+     * <p><ul> <li>0 maps to Alpha <li>1 maps to Red <li>2 maps to Green <li>3 maps to Blue </ul>
      */
     protected static int getChannel(int rgb, int channel) {
         return (rgb >> getShiftForChannel(channel)) & 0xFF;
@@ -152,9 +169,9 @@ public class Dcci {
         return Math.min(Math.max(total, minimum), maximum);
     }
 
-    private static int getInterpolatedRGB(final int[] sources) {
-        int rgb = 0;
-        for (int channel = 0; channel <= 2; channel++) {
+    private static int getInterpolatedRGB(final int[] sources, int originalRGB) {
+        int rgb = originalRGB;
+        for (int channel = 1; channel <= 3; channel++) {
             int total = 0;
             total -= getChannel(sources[0], channel);
             total += 9 * getChannel(sources[1], channel);
@@ -168,15 +185,17 @@ public class Dcci {
     }
 
     private static void effectivelyInterpolate(BufferedImage image, final int[] sources, final int x, final int y) {
-        image.setRGB(x, y, getInterpolatedRGB(sources));
+        image.setRGB(x, y, getInterpolatedRGB(sources, image.getRGB(x, y)));
     }
 
-    private static int weightedRGBAverage(int rgbA, int rgbB, double aWeight, double bWeight) {
-        int finalRgb = 0;
-        for (int channel = 0; channel <= 2; channel++) {
-            double weightedAverage = aWeight * getChannel(rgbA, channel) + bWeight * getChannel(rgbB, channel);
-            int roundedWeightedAverage = (int) Math.round(weightedAverage);
-            finalRgb = withChannel(finalRgb, channel, forceValidRange(roundedWeightedAverage, 0, 255));
+    private static int weightedRGBAverage(int rgbA, int rgbB, double aWeight, double bWeight, int originalRGB) {
+        int finalRgb = originalRGB;
+        if (getChannel(finalRgb, 0) != 255) {
+            for (int channel = 1; channel <= 3; channel++) {
+                double weightedAverage = aWeight * getChannel(rgbA, channel) + bWeight * getChannel(rgbB, channel);
+                int roundedWeightedAverage = (int) Math.round(weightedAverage);
+                finalRgb = withChannel(finalRgb, channel, forceValidRange(roundedWeightedAverage, 0, 255));
+            }
         }
         return finalRgb;
     }
@@ -236,10 +255,12 @@ public class Dcci {
 
     private static void smoothDiagonalInterpolate(BufferedImage image, int x, int y, double downRightWeight, double upRightWeight) {
         int[] upRightRGB = getUpRightRGB(image, x, y);
-        int upRightRGBValue = getInterpolatedRGB(upRightRGB);
+        int originalRGB = image.getRGB(x, y);
+        int upRightRGBValue = getInterpolatedRGB(upRightRGB, originalRGB);
         int[] downRightRGB = getDownRightRGB(image, x, y);
-        int downRightRGBValue = getInterpolatedRGB(downRightRGB);
-        image.setRGB(x, y, weightedRGBAverage(downRightRGBValue, upRightRGBValue, downRightWeight, upRightWeight));
+        int downRightRGBValue = getInterpolatedRGB(downRightRGB, originalRGB);
+        image.setRGB(x, y, weightedRGBAverage(downRightRGBValue, upRightRGBValue, downRightWeight, upRightWeight,
+                originalRGB));
     }
 
     /**
@@ -298,10 +319,12 @@ public class Dcci {
 
     private static void smoothRemainingInterpolate(BufferedImage image, int x, int y, double verticalWeight, double horizontalWeight) {
         int[] verticalRGB = getVerticalRGB(image, x, y);
-        int interpolatedVerticalRGB = getInterpolatedRGB(verticalRGB);
+        int originalRGB = image.getRGB(x, y);
+        int interpolatedVerticalRGB = getInterpolatedRGB(verticalRGB, originalRGB);
         int[] horizontalRGB = getHorizontalRGB(image, x, y);
-        int interpolatedHorizontalRGB = getInterpolatedRGB(horizontalRGB);
-        int finalRGB = weightedRGBAverage(interpolatedVerticalRGB, interpolatedHorizontalRGB, verticalWeight, horizontalWeight);
+        int interpolatedHorizontalRGB = getInterpolatedRGB(horizontalRGB, originalRGB);
+        int finalRGB = weightedRGBAverage(interpolatedVerticalRGB, interpolatedHorizontalRGB, verticalWeight,
+                horizontalWeight, originalRGB);
         image.setRGB(x, y, finalRGB);
     }
 

@@ -17,17 +17,17 @@ public class DcciTest {
     @Test
     public void testGetChannelWorksForEachChannel() throws Exception {
         int red = 0xFF0000;
-        Assert.assertEquals(255, Dcci.getChannel(red, 0));
-        Assert.assertEquals(0, Dcci.getChannel(red, 1));
+        Assert.assertEquals(255, Dcci.getChannel(red, 1));
         Assert.assertEquals(0, Dcci.getChannel(red, 2));
+        Assert.assertEquals(0, Dcci.getChannel(red, 3));
         int green = 0x00FF00;
-        Assert.assertEquals(0, Dcci.getChannel(green, 0));
-        Assert.assertEquals(255, Dcci.getChannel(green, 1));
-        Assert.assertEquals(0, Dcci.getChannel(green, 2));
+        Assert.assertEquals(0, Dcci.getChannel(green, 1));
+        Assert.assertEquals(255, Dcci.getChannel(green, 2));
+        Assert.assertEquals(0, Dcci.getChannel(green, 3));
         int blue = 0x0000FF;
-        Assert.assertEquals(0, Dcci.getChannel(blue, 0));
         Assert.assertEquals(0, Dcci.getChannel(blue, 1));
-        Assert.assertEquals(255, Dcci.getChannel(blue, 2));
+        Assert.assertEquals(0, Dcci.getChannel(blue, 2));
+        Assert.assertEquals(255, Dcci.getChannel(blue, 3));
     }
 
     @Test
@@ -50,9 +50,9 @@ public class DcciTest {
 
     @Test
     public void testWithChannel() throws Exception {
-        Assert.assertEquals(0xFF0000, Dcci.withChannel(0, 0, 0xFF));
-        Assert.assertEquals(0x00FF00, Dcci.withChannel(0, 1, 0xFF));
-        Assert.assertEquals(0x0000FF, Dcci.withChannel(0, 2, 0xFF));
+        Assert.assertEquals(0xFF0000, Dcci.withChannel(0, 1, 0xFF));
+        Assert.assertEquals(0x00FF00, Dcci.withChannel(0, 2, 0xFF));
+        Assert.assertEquals(0x0000FF, Dcci.withChannel(0, 3, 0xFF));
     }
 
 }
