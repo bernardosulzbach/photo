@@ -3,7 +3,7 @@ Photo
 
 An image manipulation toolkit in pure Java.
 
-Featuring:
+Features:
 + Implementation of Directional Cubic Convolution Interpolation
 
 Supporters
@@ -12,4 +12,5 @@ Supporters
 
 License
 -------
-The code in this repository is licensed under the BSD 2-clause license. See `LICENSE.txt` for more information.
+The code in this repository is licensed under the BSD 2-Clause license.
+See `LICENSE.txt` for more information.
