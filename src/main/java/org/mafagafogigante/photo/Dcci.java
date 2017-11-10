@@ -32,8 +32,8 @@ public class Dcci {
      * @param bufferedImage a BufferedImage
      */
     private static BufferedImage getDestinationBufferedImage(BufferedImage bufferedImage) {
-        int width = bufferedImage.getWidth() * 2 - 1;
-        int height = bufferedImage.getHeight() * 2 - 1;
+        int width = bufferedImage.getWidth() * 2;
+        int height = bufferedImage.getHeight() * 2;
         BufferedImage destination = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = destination.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
@@ -45,12 +45,7 @@ public class Dcci {
     private static void interpolateDiagonalGaps(UnderlyingArray array) {
         for (int y = 1; y < array.colLength; y += 2) {
             for (int x = 1; x < array.rowLength; x += 2) {
-                // Should handle edges properly.
-                if (y >= 3 && y <= array.colLength - 4) {
-                    if (x >= 3 && x <= array.rowLength - 4) {
-                        interpolateDiagonalGap(array, x, y);
-                    }
-                }
+                interpolateDiagonalGap(array, x, y);
             }
         }
     }
@@ -58,12 +53,7 @@ public class Dcci {
     private static void interpolateRemainingGaps(UnderlyingArray array) {
         for (int y = 0; y < array.colLength; y++) {
             for (int x = ((y % 2 == 0) ? 1 : 0); x < array.rowLength; x += 2) {
-                // Should handle edges properly.
-                if (y >= 3 && y <= array.colLength - 4) {
-                    if (x >= 3 && x <= array.rowLength - 4) {
-                        interpolateRemainingGap(array, x, y);
-                    }
-                }
+                interpolateRemainingGap(array, x, y);
             }
         }
     }
@@ -353,16 +343,30 @@ public class Dcci {
 
     private static class UnderlyingArray { // This class presented a performance improvement of around 50 %.
         private int[] array;
-        private int rowLength;
-        private int colLength;
+        private int rowLength, colLength;
+        private int xBound, yBound;
 
         private UnderlyingArray(BufferedImage bufferedImage) {
             rowLength = bufferedImage.getWidth();
             colLength = bufferedImage.getHeight();
+            xBound = rowLength - 1;
+            yBound = colLength - 1;
             array = ((DataBufferInt) bufferedImage.getRaster().getDataBuffer()).getData();
         }
-
+        
+        private static int bound(int value, int min, int max) {
+            if (value < min) {
+                return min;
+            } else if (value > max) {
+                return max;
+            } else {
+                return value;
+            }
+        }
+        
         private int getRGB(int x, int y) {
+            x = bound(x, 0, xBound); // Bound the out-of-border pixels to the edge values
+            y = bound(y, 0, yBound);
             return array[y * rowLength + x];
         }
 
