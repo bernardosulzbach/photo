@@ -17,7 +17,18 @@ public class Dcci {
      * @return a BufferedImage whose size is twice the original dimensions minus one
      */
     public static BufferedImage scale(BufferedImage original) {
-        BufferedImage result = getDestinationBufferedImage(original);
+        return scale(original, false);
+    }
+    
+    /**
+     * Scales an image using Directional Cubic Convolution Interpolation.
+     *
+     * @param original the original BufferedImage, must be at least one pixel
+     * @param keepIntegerRatio if true, upscale the image to exactly twice the size, otherwise use the original algorithm of twice minus one.
+     * @return a upscaled BufferedImage with the size specified by {@code keepIntegerRatio}.
+     */
+    public static BufferedImage scale(BufferedImage original, boolean keepIntegerRatio) {
+        BufferedImage result = getDestinationBufferedImage(original, keepIntegerRatio);
         UnderlyingArray underlyingArray = new UnderlyingArray(result);
         // The original paper does not specify how to handle colored images. The solution used here is to sum all RGB
         // components when calculating edge strength and interpolate over each color channel separately.
@@ -30,10 +41,11 @@ public class Dcci {
      * Returns a BufferedImage backed by integers and big enough to support the scaling algorithm.
      *
      * @param bufferedImage a BufferedImage
+     * @param keepIntegerRatio whether to keep an integer ratio
      */
-    private static BufferedImage getDestinationBufferedImage(BufferedImage bufferedImage) {
-        int width = bufferedImage.getWidth() * 2;
-        int height = bufferedImage.getHeight() * 2;
+    private static BufferedImage getDestinationBufferedImage(BufferedImage bufferedImage, boolean keepIntegerRatio) {
+        int width  = bufferedImage.getWidth()  * 2 - (keepIntegerRatio ? 0 : 1);
+        int height = bufferedImage.getHeight() * 2 - (keepIntegerRatio ? 0 : 1);
         BufferedImage destination = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2 = destination.createGraphics();
         g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
